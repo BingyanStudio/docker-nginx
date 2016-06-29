@@ -1,18 +1,23 @@
-services: docker
-language: bash
+#!/usr/bin/env sh
 
-env:
-  global:
-    - IMAGE_PREFIX=${IMAGE_PREFIX:-$DOCKER_USER/}
-    - IMAGE_NAME=btsync
-    - PUSH_LIST=/tmp/push_list
-  matrix:
-    - SUBDIR=2.3 TAGS="latest"
+set -xe
 
-script:
-  - ./build.sh
+cd "$SUBDIR"
 
-after_script:
-  - docker images
-  - docker login -u "$DOCKER_USER" -p "$DOCKER_PASSWORD" -e "$DOCKER_EMAIL"
-  - for x in $(cat "$PUSH_LIST"); do docker push $x; done
+VERSION=$(basename $(pwd))
+IMAGE=${IMAGE_PREFIX}${IMAGE_NAME}:${TAG_PREFIX}${VERSION}
+
+if [ -f .version ]; then
+    for x in $(cat .version); do
+        TAGS="$TAGS ${TAG_PREFIX}${x}"
+    done
+fi
+
+docker build -t $IMAGE -f Dockerfile .
+echo $IMAGE >> "$PUSH_LIST"
+
+for x in $TAGS; do
+    alias=${IMAGE%%:*}:$x
+    docker tag $IMAGE $alias
+    echo "$alias" >> "$PUSH_LIST"
+done
